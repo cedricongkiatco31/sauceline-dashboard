@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Sauce Line Mtech</title>
+<style>
+body{font-family:Arial; background:#111; color:white; padding:20px;}
+header{display:flex; align-items:center; margin-bottom:20px;}
+header img{height:60px; margin-right:15px;}
+h1,h2{margin:0;}
+table{width:100%; border-collapse:collapse; margin-top:20px;}
+th,td{border:1px solid white; padding:8px; text-align:center;}
+th{background:#1f4e79;}
+.Running{background:green;}
+.Maintenance{background:red;}
+.Idle{background:gray;}
+#clock{font-size:18px; margin-bottom:15px;}
+input, select, button{padding:8px; font-size:14px; margin:5px 0;}
+button{cursor:pointer;}
+</style>
+</head>
+<body>
+
+<header>
+  <img src="logo.png" alt="Company Logo">
+  <h1>🏭 Sauce Line Mtech</h1>
+</header>
+
+<div id="clock">Time: --:--:-- | Current Team: --</div>
+
+<h2>Operator Inputs</h2>
+<label>Team:</label>
+<select id="teamSelect">
+  <option value="Team A">Team A</option>
+  <option value="Team B">Team B</option>
+</select><br>
+
+<label>Machine / Line:</label>
+<input type="text" id="lineInput" placeholder="Enter machine name"><br>
+
+<label>Product Name:</label>
+<input type="text" id="productInput" placeholder="Enter product name"><br>
+
+<label>Batch Number:</label>
+<input type="text" id="batchInput" placeholder="Enter batch number"><br>
+
+<button onclick="startBatch()">START BATCH</button>
+<button onclick="stopBatch()">STOP BATCH</button>
+<button onclick="setDowntime()">DOWNTIME</button>
+
+<h2>Real-Time Line Status</h2>
+<table id="lineTable">
+  <thead>
+    <tr>
+      <th>Machine</th>
+      <th>Status</th>
+      <th>Product</th>
+      <th>Batch</th>
+      <th>Batch / Idle Duration</th>
+      <th>Downtime Duration</th>
+      <th>Start → Finish | Duration</th>
+      <th>Downtime</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<h2>Reset Data</h2>
+<button onclick="clearLines()">Clear Real-Time Status</button>
+<button onclick="clearHistory()">Clear Batch History</button>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
+import { getDatabase, ref, set, update, push, onValue, remove } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAg4rVipAU_DAa0LVQ7J5N_nyTrh3HJsWY",
+  authDomain: "saucelinemonitoring.firebaseapp.com",
+  databaseURL: "https://saucelinemonitoring-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "saucelinemonitoring",
+  storageBucket: "saucelinemonitoring.firebasestorage.app",
+  messagingSenderId: "279518017940",
+  appId: "1:279518017940:web:600209352780771915b781"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+const batchTimers = {};
+const downtimeTimers = {};
+const idleTimers = {};
+
+function getSelectedTeam(){ return document.getElementById("teamSelect").value || "Team A"; }
+function formatDuration(msStart, msEnd=null){
+  if(!msStart) return "--:--";
+  const stop = msEnd || Date.now();
+  const elapsed = stop - msStart;
+  const h = Math.floor(elapsed/3600000);
+  const m = Math.floor((elapsed%3600000)/60000);
+  const s = Math.floor((elapsed%60000)/1000);
+  return `${h}h ${m}m ${s}s`;
+}
+
+// Clock
+function updateClock(){
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2,'0');
+  const m = String(now.getMinutes()).padStart(2,'0');
+  const s = String(now.getSeconds()).padStart(2,'0');
+  document.getElementById("clock").innerText = `Time: ${h}:${m}:${s} | Current Team: ${getSelectedTeam()}`;
+}
+setInterval(updateClock,1000);
+updateClock();
+
+// Auto-reset on team change
+let lastTeam = getSelectedTeam();
+setInterval(()=>{
+  const currentTeam = getSelectedTeam();
+  if(lastTeam !== currentTeam){
+    lastTeam = currentTeam;
+    remove(ref(db,'lines'));
+    remove(ref(db,'history'));
+  }
+},60000);
+
+// Operator functions
+window.startBatch = function(){
+  const line = document.getElementById("lineInput").value || "Unknown";
+  const product = document.getElementById("productInput").value || "Unknown";
+  const batch = document.getElementById("batchInput").value || "N/A";
+  const team = getSelectedTeam();
+  const startTime = Date.now();
+  if(idleTimers[line]) clearInterval(idleTimers[line]);
+
+  set(ref(db,'lines/'+line),{
+    status:"Running",
+    product,
+    batch,
+    team,
+    startTime,
+    stopTime:"",
+    downtime:""
+  });
+
+  push(ref(db,'history'),{
+    line,
+    product,
+    batch,
+    team,
+    status:"Running",
+    startTime,
+    stopTime:null,
+    downtime:""
+  });
+}
+
+window.stopBatch = function(){
+  const line = document.getElementById("lineInput").value || "Unknown";
+  const stopTime = Date.now();
+
+  update(ref(db,'lines/'+line),{
+    status:"Idle",
+    startTime: stopTime
+  });
+
+  push(ref(db,'history'),{
+    line,
+    product: document.getElementById("productInput").value || "Unknown",
+    batch: document.getElementById("batchInput").value || "N/A",
+    team:getSelectedTeam(),
+    status:"Idle",
+    startTime: stopTime,
+    stopTime: stopTime,
+    downtime:""
+  });
+}
+
+window.setDowntime = function(){
+  const line = document.getElementById("lineInput").value || "Unknown";
+  const reason = prompt("Enter downtime reason");
+  const startTime = Date.now();
+  if(batchTimers[line]) clearInterval(batchTimers[line]);
+  if(idleTimers[line]) clearInterval(idleTimers[line]);
+
+  update(ref(db,'lines/'+line),{
+    status:"Maintenance",
+    downtime: reason,
+    startTime
+  });
+
+  push(ref(db,'history'),{
+    line,
+    product: document.getElementById("productInput").value || "Unknown",
+    batch: document.getElementById("batchInput").value || "N/A",
+    team:getSelectedTeam(),
+    status:"Maintenance",
+    startTime,
+    stopTime: Date.now(),
+    downtime: reason
+  });
+}
+
+// Clear
+window.clearLines = function(){ if(confirm("Clear real-time lines?")) remove(ref(db,'lines')); }
+window.clearHistory = function(){ if(confirm("Clear batch history?")) remove(ref(db,'history')); }
+
+// Real-time table
+const lineTableBody = document.getElementById("lineTable").querySelector("tbody");
+onValue(ref(db,'lines'), snapshot=>{
+  lineTableBody.innerHTML = "";
+  snapshot.forEach(child=>{
+    const data = child.val(), line = child.key;
+    const tr = document.createElement("tr");
+    tr.className = data.status || "Idle";
+    tr.setAttribute("data-start", data.startTime || "");
+
+    tr.innerHTML = `
+      <td>${line}</td>
+      <td>${data.status || ""}</td>
+      <td>${data.product || ""}</td>
+      <td>${data.batch || ""}</td>
+      <td id="batchTimer-${line}">${formatDuration(data.startTime)}</td>
+      <td id="downtimeTimer-${line}">${data.status==="Maintenance"?formatDuration(data.startTime):"--:--"}</td>
+      <td>${data.startTime ? new Date(data.startTime).toLocaleTimeString() : ""} → ${data.stopTime ? new Date(data.stopTime).toLocaleTimeString() : ""} | ${formatDuration(data.startTime, data.stopTime)}</td>
+      <td>${data.downtime || ""}</td>
+    `;
+
+    lineTableBody.appendChild(tr);
+  });
+});
+
+// Live timers
+setInterval(()=>{
+  document.querySelectorAll("tr").forEach(row=>{
+    const start = row.getAttribute("data-start");
+    if(start){
+      row.children[4].innerText = formatDuration(Number(start));
+      if(row.className==="Maintenance")
+        row.children[5].innerText = formatDuration(Number(start));
+    }
+  });
+},1000);
+
+</script>
+</body>
+</html>
