@@ -5,41 +5,40 @@
 <title>Sauceline Dashboard</title>
 
 <style>
-
 body{
-margin:0;
-padding:20px;
-font-family:Arial;
-background:#0b1320;
-color:white;
+    margin:0;
+    padding:20px;
+    font-family:Arial;
+    background:#0b1320;
+    color:white;
 }
 
 .header{
-background:#1f4e79;
-padding:15px;
-display:flex;
-justify-content:space-between;
-align-items:center;
+    background:#1f4e79;
+    padding:15px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
 }
 
 .header h1{margin:0;}
 
 #clock,#teamDisplay{
-font-size:18px;
+    font-size:18px;
 }
 
 .summary{
-display:flex;
-gap:20px;
-margin-top:15px;
+    display:flex;
+    gap:20px;
+    margin-top:15px;
 }
 
 .card{
-flex:1;
-padding:20px;
-border-radius:8px;
-text-align:center;
-font-size:20px;
+    flex:1;
+    padding:20px;
+    border-radius:8px;
+    text-align:center;
+    font-size:20px;
 }
 
 .running{background:green;}
@@ -47,72 +46,75 @@ font-size:20px;
 .down{background:red;}
 
 .area{
-margin-top:35px;
+    margin-top:35px;
 }
 
 table{
-width:100%;
-border-collapse:collapse;
-margin-top:10px;
+    width:100%;
+    border-collapse:collapse;
+    margin-top:10px;
 }
 
 th,td{
-border:1px solid #444;
-padding:8px;
-text-align:center;
+    border:1px solid #444;
+    padding:8px;
+    text-align:center;
 }
 
 th{
-background:#1f4e79;
+    background:#1f4e79;
 }
 
 .Running{background:green;}
-.Downtime{background:red;}
 .Idle{background:gray;}
 
+@keyframes blinkRed{
+    0%{background:#8b0000;}
+    50%{background:#ff0000;}
+    100%{background:#8b0000;}
+}
+
+.Downtime{
+    animation:blinkRed 1s infinite;
+    color:white;
+}
+
+#historyTable tr{
+    background:#1b263b;
+}
 </style>
 </head>
-
 <body>
 
 <div class="header">
-
-<div style="display:flex;align-items:center;gap:15px;">
-<img src="logo.png" style="height:60px;">
-<h1>🏭 Sauceline Dashboard</h1>
+    <div style="display:flex;align-items:center;gap:15px;">
+        <img src="logo.png" style="height:60px;">
+        <h1>🏭 Sauceline Dashboard</h1>
+    </div>
+    <div>
+        <span id="teamDisplay">Team: --</span> |
+        <span id="clock">--:--:--</span>
+    </div>
 </div>
-
-<div>
-<span id="teamDisplay">Team: --</span> |
-<span id="clock">--:--:--</span>
-</div>
-
-</div>
-
 
 <div class="summary">
-
-<div class="card running">
-Running Machines
-<h2 id="runningCount">0</h2>
+    <div class="card running">
+        Running Machines
+        <h2 id="runningCount">0</h2>
+    </div>
+    <div class="card idle">
+        Idle Machines
+        <h2 id="idleCount">0</h2>
+    </div>
+    <div class="card down">
+        Downtime Machines
+        <h2 id="downCount">0</h2>
+    </div>
 </div>
 
-<div class="card idle">
-Idle Machines
-<h2 id="idleCount">0</h2>
-</div>
-
-<div class="card down">
-Downtime Machines
-<h2 id="downCount">0</h2>
-</div>
-
-</div>
-
-
+<!-- AREAS -->
 <div class="area">
 <h2>KAJIWARA AREA</h2>
-
 <table id="kajiwara">
 <thead>
 <tr>
@@ -129,11 +131,8 @@ Downtime Machines
 </table>
 </div>
 
-
-
 <div class="area">
 <h2>KETTLE AREA</h2>
-
 <table id="kettle">
 <thead>
 <tr>
@@ -150,11 +149,8 @@ Downtime Machines
 </table>
 </div>
 
-
-
 <div class="area">
 <h2>FFS AREA</h2>
-
 <table id="ffs">
 <thead>
 <tr>
@@ -171,11 +167,8 @@ Downtime Machines
 </table>
 </div>
 
-
-
 <div class="area">
 <h2>BRAISING PAN AREA</h2>
-
 <table id="braising">
 <thead>
 <tr>
@@ -192,11 +185,8 @@ Downtime Machines
 </table>
 </div>
 
-
-
 <div class="area">
 <h2>SPIRAL AREA</h2>
-
 <table id="spiral">
 <thead>
 <tr>
@@ -213,185 +203,151 @@ Downtime Machines
 </table>
 </div>
 
-
+<!-- DOWNTIME HISTORY -->
+<div class="area">
+<h2>📋 DOWNTIME HISTORY</h2>
+<table id="historyTable">
+<thead>
+<tr>
+<th>Time</th>
+<th>Machine</th>
+<th>Area</th>
+<th>Reason</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+</div>
 
 <script type="module">
-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
 import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-database.js";
 
 const firebaseConfig = {
-apiKey: "AIzaSyAg4rVipAU_DAa0LVQ7J5N_nyTrh3HJsWY",
-authDomain: "saucelinemonitoring.firebaseapp.com",
-databaseURL: "https://saucelinemonitoring-default-rtdb.asia-southeast1.firebasedatabase.app",
-projectId: "saucelinemonitoring",
-storageBucket: "saucelinemonitoring.firebasestorage.app",
-messagingSenderId: "279518017940",
-appId: "1:279518017940:web:600209352780771915b781"
+    apiKey: "AIzaSyAg4rVipAU_DAa0LVQ7J5N_nyTrh3HJsWY",
+    authDomain: "saucelinemonitoring.firebaseapp.com",
+    databaseURL: "https://saucelinemonitoring-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "saucelinemonitoring",
+    storageBucket: "saucelinemonitoring.firebasestorage.app",
+    messagingSenderId: "279518017940",
+    appId: "1:279518017940:web:600209352780771915b781"
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-const areas={
-kajiwara:document.querySelector("#kajiwara tbody"),
-kettle:document.querySelector("#kettle tbody"),
-ffs:document.querySelector("#ffs tbody"),
-braising:document.querySelector("#braising tbody"),
-spiral:document.querySelector("#spiral tbody")
+const areas = {
+    kajiwara: document.querySelector("#kajiwara tbody"),
+    kettle: document.querySelector("#kettle tbody"),
+    ffs: document.querySelector("#ffs tbody"),
+    braising: document.querySelector("#braising tbody"),
+    spiral: document.querySelector("#spiral tbody")
 };
 
+const historyTable = document.querySelector("#historyTable tbody");
 
+// Tracks if a machine has already been logged in history
+let downtimeLogged = {};
 
 function formatTime(start){
-
-if(!start) return "--";
-
-const diff=Date.now()-start;
-
-const h=Math.floor(diff/3600000);
-const m=Math.floor((diff%3600000)/60000);
-const s=Math.floor((diff%60000)/1000);
-
-return `${h}h ${m}m ${s}s`;
-
+    if(!start) return "--";
+    const diff = Date.now() - start;
+    const h = Math.floor(diff/3600000);
+    const m = Math.floor((diff%3600000)/60000);
+    const s = Math.floor((diff%60000)/1000);
+    return `${h}h ${m}m ${s}s`;
 }
-
-
 
 function updateClock(){
-
-const now=new Date();
-
-const time=now.toLocaleTimeString('en-GB',{
-hour:'2-digit',
-minute:'2-digit',
-second:'2-digit',
-hour12:false
-});
-
-document.getElementById("clock").innerText=time;
-
+    const now = new Date();
+    const time = now.toLocaleTimeString('en-GB',{
+        hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false
+    });
+    document.getElementById("clock").innerText=time;
 }
-
 setInterval(updateClock,1000);
 updateClock();
 
-
-
-onValue(ref(db,'lines'), snapshot=>{
-
-Object.values(areas).forEach(t=>t.innerHTML="");
-
-let running=0;
-let idle=0;
-let down=0;
-
-let currentTeam="--";
-
-snapshot.forEach(child=>{
-
-const d=child.val();
-const name=child.key;
-
-const statusLower=(d.status||"").toLowerCase();
-
-let displayStatus=
-statusLower==="running"?"Running":
-statusLower==="idle"?"Idle":
-"Downtime";
-
-if(displayStatus==="Running")running++;
-else if(displayStatus==="Idle")idle++;
-else down++;
-
-if(d.team)currentTeam=d.team;
-
-
-
-let reason="--";
-
-if(displayStatus==="Downtime"){
-
-reason=
-d.reason||
-d.downtimeReason||
-d.downtime_reason||
-d.stopReason||
-d.stop_reason||
-d.downtime||
-"--";
-
+function addHistory(machine, area, reason, startTime){
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${new Date(startTime).toLocaleTimeString()}</td><td>${machine}</td><td>${area}</td><td>${reason}</td>`;
+    historyTable.prepend(tr);
+    downtimeLogged[machine] = true; // mark as logged
 }
 
+onValue(ref(db,'lines'), snapshot=>{
+    Object.values(areas).forEach(t=>t.innerHTML="");
 
+    let running=0, idle=0, down=0;
+    let currentTeam="--";
 
-const tr=document.createElement("tr");
+    snapshot.forEach(child=>{
+        const d = child.val();
+        const name = child.key;
+        const statusLower = (d.status||"").toLowerCase();
+        const displayStatus =
+            statusLower==="running"?"Running":
+            statusLower==="idle"?"Idle":"Downtime";
 
-tr.className=displayStatus;
+        if(displayStatus==="Running") running++;
+        else if(displayStatus==="Idle") idle++;
+        else down++;
 
-tr.setAttribute("data-start",d.startTime||"");
+        if(d.team) currentTeam=d.team;
 
-tr.innerHTML=`
-<td>${name}</td>
-<td>${displayStatus}</td>
-<td>${d.product||""}</td>
-<td>${d.batch||""}</td>
-<td>${formatTime(d.startTime)}</td>
-<td>${displayStatus==="Downtime"?formatTime(d.startTime):""}</td>
-<td>${reason}</td>
-`;
+        let reason = "--";
+        if(displayStatus==="Downtime"){
+            reason = d.reason || d.downtimeReason || d.downtime_reason || d.stopReason || d.stop_reason || d.downtime || "--";
+        }
 
+        const tr = document.createElement("tr");
+        tr.className = displayStatus;
+        tr.setAttribute("data-start", d.startTime||"");
+        tr.innerHTML = `
+            <td>${name}</td>
+            <td>${displayStatus}</td>
+            <td>${d.product||""}</td>
+            <td>${d.batch||""}</td>
+            <td>${formatTime(d.startTime)}</td>
+            <td>${displayStatus==="Downtime"?formatTime(d.startTime):""}</td>
+            <td>${reason}</td>
+        `;
 
-const lower=name.toLowerCase();
+        let areaName="Spiral";
+        const lower=name.toLowerCase();
+        if(lower.includes("kajiwara")) { areas.kajiwara.appendChild(tr); areaName="Kajiwara"; }
+        else if(lower.includes("kettle")) { areas.kettle.appendChild(tr); areaName="Kettle"; }
+        else if(lower.includes("ffs")) { areas.ffs.appendChild(tr); areaName="FFS"; }
+        else if(lower.includes("braising")) { areas.braising.appendChild(tr); areaName="Braising"; }
+        else { areas.spiral.appendChild(tr); }
 
-if(lower.includes("kajiwara"))
-areas.kajiwara.appendChild(tr);
+        const machineId = child.key;
 
-else if(lower.includes("kettle"))
-areas.kettle.appendChild(tr);
+        if(displayStatus==="Downtime"){
+            if(!downtimeLogged[machineId]){
+                addHistory(name, areaName, reason, Number(d.startTime) || Date.now());
+            }
+        } else {
+            downtimeLogged[machineId] = false; // reset if machine leaves downtime
+        }
+    });
 
-else if(lower.includes("ffs"))
-areas.ffs.appendChild(tr);
-
-else if(lower.includes("braising"))
-areas.braising.appendChild(tr);
-
-else
-areas.spiral.appendChild(tr);
-
+    document.getElementById("runningCount").innerText = running;
+    document.getElementById("idleCount").innerText = idle;
+    document.getElementById("downCount").innerText = down;
+    document.getElementById("teamDisplay").innerText = "Team: " + currentTeam;
 });
 
-
-document.getElementById("runningCount").innerText=running;
-document.getElementById("idleCount").innerText=idle;
-document.getElementById("downCount").innerText=down;
-document.getElementById("teamDisplay").innerText="Team: "+currentTeam;
-
-});
-
-
-
+// Update timers every second
 setInterval(()=>{
-
-document.querySelectorAll("tr").forEach(row=>{
-
-const start=row.getAttribute("data-start");
-
-if(!start)return;
-
-const cls=row.className;
-
-if(cls==="Running"||cls==="Idle")
-row.children[4].innerText=formatTime(Number(start));
-
-if(cls==="Downtime")
-row.children[5].innerText=formatTime(Number(start));
-
-});
-
+    document.querySelectorAll("tr").forEach(row=>{
+        const start = row.getAttribute("data-start");
+        if(!start) return;
+        const cls = row.className;
+        if(cls==="Running"||cls==="Idle") row.children[4].innerText = formatTime(Number(start));
+        if(cls==="Downtime") row.children[5].innerText = formatTime(Number(start));
+    });
 },1000);
-
 </script>
 
 </body>
